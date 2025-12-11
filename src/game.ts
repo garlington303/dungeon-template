@@ -200,18 +200,31 @@ class TextureManager {
     }
 
     try {
+<<<<<<< HEAD
       // Load right hand viewmodel texture
       const rightHandTex = await this.loader.loadAsync('src/assets/resources/hands/Mage-hand-right.png');
       configureTexture(rightHandTex);
       this.textures.set('hand-right', rightHandTex);
       console.log('Right hand viewmodel texture loaded');
+=======
+      // Load right hand texture
+      const handTex = await this.loader.loadAsync('src/assets/resources/hands/Mage-hand.png');
+      configureTexture(handTex);
+      this.textures.set('hand', handTex);
+      console.log('Right hand texture loaded');
+>>>>>>> fb3097ecf9974a161c83bb1265f04ca236e47bd8
     } catch (e) {
       console.warn('Failed to load right hand viewmodel texture', e);
     }
 
     try {
+<<<<<<< HEAD
       // Load left hand viewmodel texture (separate image, not mirrored)
       const leftHandTex = await this.loader.loadAsync('src/assets/resources/hands/Mage-hand-left2.png');
+=======
+      // Load left hand texture (separate image, not mirrored)
+      const leftHandTex = await this.loader.loadAsync('src/assets/resources/hands/Mage-hand-left1.png');
+>>>>>>> fb3097ecf9974a161c83bb1265f04ca236e47bd8
       configureTexture(leftHandTex);
       this.textures.set('hand-left', leftHandTex);
       console.log('Left hand viewmodel texture loaded');
