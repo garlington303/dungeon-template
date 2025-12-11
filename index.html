@@ -220,6 +220,445 @@
         border-color: #aa8822;
         text-shadow: 0 0 10px rgba(255, 204, 68, 0.5);
       }
+
+      /* ==========================
+         INVENTORY OVERLAY (RPG UI)
+         ========================== */
+      #inventory-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 1000;
+        pointer-events: auto;
+      }
+
+      #inventory-overlay.open {
+        display: flex;
+      }
+
+      #inventory-panel {
+        width: min(1400px, calc(100vw - 40px));
+        height: min(860px, calc(100vh - 40px));
+        display: grid;
+        grid-template-rows: 1fr auto;
+        gap: 14px;
+        padding: 18px;
+        border: 2px solid #444;
+        border-radius: 10px;
+        background:
+          linear-gradient(180deg, rgba(20, 18, 18, 0.96), rgba(10, 10, 10, 0.96));
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+      }
+
+      #inventory-main {
+        display: grid;
+        grid-template-columns: 400px 1fr 300px;
+        gap: 18px;
+        min-height: 0;
+      }
+
+      #inventory-left {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 14px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 14px;
+        background:
+          linear-gradient(180deg, rgba(30, 26, 22, 0.9), rgba(14, 12, 10, 0.9));
+        min-height: 0;
+      }
+
+      #inventory-title {
+        font-size: 16px;
+        letter-spacing: 3px;
+        color: #ddd;
+        text-transform: uppercase;
+        border-bottom: 1px solid #333;
+        padding-bottom: 8px;
+      }
+
+      #paperdoll {
+        position: relative;
+        border: 1px solid #333;
+        border-radius: 10px;
+        background:
+          radial-gradient(circle at 50% 35%, rgba(70, 65, 55, 0.25), rgba(8, 8, 8, 0.55)),
+          linear-gradient(180deg, rgba(18, 16, 12, 0.7), rgba(8, 8, 8, 0.7));
+        overflow: hidden;
+      }
+
+      #paperdoll-silhouette {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 180px;
+        height: 420px;
+        transform: translate(-50%, -50%);
+        border-radius: 90px;
+        background:
+          linear-gradient(180deg, rgba(140, 140, 140, 0.35), rgba(70, 70, 70, 0.22));
+        filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.65));
+      }
+
+      #inventory-stats {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: #bbb;
+      }
+
+      #inventory-right {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 12px;
+        min-width: 0;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 14px;
+        background:
+          linear-gradient(180deg, rgba(30, 26, 22, 0.9), rgba(14, 12, 10, 0.9));
+      }
+
+      #inventory-details {
+        border-top: 1px solid #333;
+        padding-top: 12px;
+        color: #aaa;
+        font-size: 12px;
+      }
+
+      #inventory-stats .stat-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      #inventory-stats .stat-label {
+        color: #888;
+      }
+
+      .equip-slot {
+        border: 2px solid #555;
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 30% 30%, rgba(60, 55, 45, 0.85), rgba(18, 16, 12, 0.9));
+        position: relative;
+        display: grid;
+        place-items: center;
+      }
+
+      .equip-slot {
+        position: absolute;
+      }
+
+      /* Slot sizing + placement (approximate Tarkov-style paper doll) */
+      .equip-head { width: 80px; height: 80px; left: 50%; top: 18px; transform: translateX(-50%); }
+      .equip-face { width: 64px; height: 64px; left: 50%; top: 108px; transform: translateX(-50%); }
+      .equip-neck { width: 64px; height: 64px; left: 50%; top: 178px; transform: translateX(-50%); }
+      .equip-torso { width: 96px; height: 96px; left: 50%; top: 254px; transform: translateX(-50%); }
+      .equip-back { width: 80px; height: 80px; left: calc(50% - 120px); top: 264px; }
+      .equip-leftArm { width: 80px; height: 80px; left: calc(50% - 200px); top: 270px; }
+      .equip-rightArm { width: 80px; height: 96px; left: calc(50% + 120px); top: 260px; }
+      .equip-belt { width: 96px; height: 48px; left: 50%; top: 368px; transform: translateX(-50%); }
+      .equip-legs { width: 80px; height: 96px; left: 50%; top: 430px; transform: translateX(-50%); }
+      .equip-feet { width: 80px; height: 64px; left: 50%; top: 538px; transform: translateX(-50%); }
+      .equip-ringLeft { width: 56px; height: 56px; left: calc(50% - 170px); top: 520px; }
+      .equip-ringRight { width: 56px; height: 56px; left: calc(50% + 120px); top: 520px; }
+
+      .equip-slot.equipped {
+        border-color: #88aacc;
+        box-shadow: 0 0 16px rgba(68, 136, 255, 0.25);
+      }
+
+      .equip-hint {
+        font-size: 10px;
+        color: #777;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        text-align: center;
+        padding: 0 6px;
+        user-select: none;
+      }
+
+      #inventory-center {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      #inventory-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 64px);
+        grid-template-rows: repeat(6, 64px);
+        gap: 10px;
+        justify-content: center;
+        align-content: center;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 14px;
+        background:
+          linear-gradient(180deg, rgba(18, 16, 12, 0.9), rgba(8, 8, 8, 0.9));
+      }
+
+      .inv-slot {
+        width: 64px;
+        height: 64px;
+        border: 2px solid #555;
+        border-radius: 6px;
+        position: relative;
+        background:
+          linear-gradient(180deg, rgba(34, 34, 34, 0.75), rgba(20, 20, 20, 0.75)),
+          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.03) 0px, rgba(255, 255, 255, 0.03) 6px, rgba(0, 0, 0, 0.03) 6px, rgba(0, 0, 0, 0.03) 12px);
+        display: grid;
+        place-items: center;
+        user-select: none;
+      }
+
+      .inv-slot.drop-target {
+        outline: 2px solid rgba(68, 136, 255, 0.65);
+        outline-offset: 2px;
+      }
+
+      .inv-item {
+        width: 48px;
+        height: 48px;
+        image-rendering: pixelated;
+        pointer-events: none;
+      }
+
+      .inv-count {
+        position: absolute;
+        right: 4px;
+        bottom: 3px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        text-shadow: 1px 1px 0 #000;
+        pointer-events: none;
+      }
+
+      #inventory-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.4);
+        color: #aaa;
+        font-size: 12px;
+      }
+
+      #inventory-hotbar {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.4);
+      }
+
+      .hotbar-slot {
+        width: 72px;
+        height: 72px;
+        border: 2px solid #555;
+        border-radius: 8px;
+        position: relative;
+        display: grid;
+        place-items: center;
+        background:
+          linear-gradient(180deg, rgba(34, 34, 34, 0.75), rgba(20, 20, 20, 0.75));
+        user-select: none;
+      }
+
+      .hotbar-slot .hotbar-key {
+        position: absolute;
+        top: 5px;
+        left: 6px;
+        font-size: 12px;
+        color: #ccc;
+        text-shadow: 1px 1px 0 #000;
+        pointer-events: none;
+      }
+
+      #inv-capacity-bar {
+        flex: 1;
+        height: 10px;
+        border-radius: 999px;
+        border: 1px solid #444;
+        background: rgba(0, 0, 0, 0.6);
+        overflow: hidden;
+      }
+
+      #inv-capacity-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, rgba(68, 255, 136, 0.8), rgba(255, 204, 68, 0.8));
+      }
+
+      #inv-tooltip {
+        position: fixed;
+        z-index: 1100;
+        min-width: 260px;
+        max-width: 320px;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: rgba(10, 10, 10, 0.92);
+        box-shadow: 0 0 24px rgba(0, 0, 0, 0.75);
+        display: none;
+        pointer-events: auto;
+      }
+
+      #inv-tooltip.visible {
+        display: block;
+      }
+
+      #inv-tooltip .tt-title {
+        font-weight: bold;
+        margin-bottom: 6px;
+      }
+
+      #inv-tooltip .tt-line {
+        font-size: 12px;
+        color: #bbb;
+        margin: 2px 0;
+      }
+
+      #inv-tooltip .tt-desc {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #aaa;
+        line-height: 1.35;
+      }
+
+      #inv-tooltip .tt-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        pointer-events: auto;
+      }
+
+      #inv-context {
+        position: fixed;
+        z-index: 1250;
+        width: 220px;
+        padding: 10px;
+        border: 1px solid #333;
+        border-radius: 10px;
+        background: rgba(10, 10, 10, 0.95);
+        box-shadow: 0 0 18px rgba(0, 0, 0, 0.8);
+        display: none;
+        pointer-events: auto;
+      }
+
+      #inv-context.open {
+        display: block;
+      }
+
+      #inv-context .ctx-title {
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #ddd;
+        font-size: 12px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+
+      #inv-context .ctx-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .tt-btn {
+        padding: 6px 10px;
+        border: 1px solid #444;
+        border-radius: 6px;
+        background: rgba(40, 40, 40, 0.8);
+        color: #ddd;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .tt-btn:hover {
+        border-color: #666;
+        background: rgba(60, 60, 60, 0.9);
+      }
+
+      #inv-drag-ghost {
+        position: fixed;
+        z-index: 1200;
+        width: 48px;
+        height: 48px;
+        opacity: 0.9;
+        pointer-events: none;
+        image-rendering: pixelated;
+        display: none;
+      }
+
+      #inv-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 28px;
+        transform: translateX(-50%);
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: 1px solid #333;
+        background: rgba(0, 0, 0, 0.75);
+        color: #ddd;
+        font-size: 13px;
+        letter-spacing: 1px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        z-index: 1050;
+        pointer-events: none;
+      }
+
+      #inv-toast.visible {
+        opacity: 1;
+      }
+
+      #inv-confirm {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1300;
+        background: rgba(0, 0, 0, 0.6);
+      }
+
+      #inv-confirm.open {
+        display: flex;
+      }
+
+      #inv-confirm-panel {
+        width: 360px;
+        padding: 16px;
+        border: 1px solid #444;
+        border-radius: 10px;
+        background: rgba(12, 12, 12, 0.95);
+        box-shadow: 0 0 24px rgba(0, 0, 0, 0.8);
+        text-align: center;
+      }
+
+      #inv-confirm-panel .msg {
+        color: #ddd;
+        font-size: 13px;
+        margin-bottom: 12px;
+      }
+
+      #inv-confirm-panel .actions {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+      }
     </style>
   </head>
   <body>
@@ -232,6 +671,116 @@
     </div>
     <div id="status-indicator" class="exploring">EXPLORING</div>
     <div id="hand-indicator">MAGE HAND</div>
+
+    <!-- Inventory Overlay (hidden by default; toggled by JS) -->
+    <div id="inventory-overlay" aria-hidden="true">
+      <div id="inventory-panel" role="dialog" aria-modal="true" aria-label="Inventory">
+        <div id="inventory-main">
+          <div id="inventory-left">
+            <div id="inventory-title">INVENTORY</div>
+            <div id="paperdoll" aria-label="Paper doll">
+              <div id="paperdoll-silhouette" aria-hidden="true"></div>
+
+              <div class="equip-slot equip-head" data-equip-slot="head" title="Head">
+                <div class="equip-hint">HEAD</div>
+              </div>
+              <div class="equip-slot equip-face" data-equip-slot="face" title="Face">
+                <div class="equip-hint">FACE</div>
+              </div>
+              <div class="equip-slot equip-neck" data-equip-slot="neck" title="Neck">
+                <div class="equip-hint">NECK</div>
+              </div>
+              <div class="equip-slot equip-torso" data-equip-slot="torso" title="Torso">
+                <div class="equip-hint">TORSO</div>
+              </div>
+              <div class="equip-slot equip-back" data-equip-slot="back" title="Back">
+                <div class="equip-hint">BACK</div>
+              </div>
+              <div class="equip-slot equip-leftArm" data-equip-slot="leftArm" title="Left Arm">
+                <div class="equip-hint">L-ARM</div>
+              </div>
+              <div class="equip-slot equip-rightArm" data-equip-slot="rightArm" title="Right Arm">
+                <div class="equip-hint">R-ARM</div>
+              </div>
+              <div class="equip-slot equip-belt" data-equip-slot="belt" title="Belt">
+                <div class="equip-hint">BELT</div>
+              </div>
+              <div class="equip-slot equip-legs" data-equip-slot="legs" title="Legs">
+                <div class="equip-hint">LEGS</div>
+              </div>
+              <div class="equip-slot equip-feet" data-equip-slot="feet" title="Feet">
+                <div class="equip-hint">FEET</div>
+              </div>
+              <div class="equip-slot equip-ringLeft" data-equip-slot="ringLeft" title="Left Ring">
+                <div class="equip-hint">RING</div>
+              </div>
+              <div class="equip-slot equip-ringRight" data-equip-slot="ringRight" title="Right Ring">
+                <div class="equip-hint">RING</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="inventory-center">
+            <div id="inventory-grid" aria-label="Inventory grid"></div>
+            <div id="inventory-footer">
+              <div id="inv-capacity-label">SLOTS: <span id="inv-capacity-text">0 / 48</span></div>
+              <div id="inv-capacity-bar"><div id="inv-capacity-fill"></div></div>
+              <div>ESC: CLOSE</div>
+            </div>
+          </div>
+
+          <div id="inventory-right">
+            <div id="inventory-stats">
+              <div class="stat-row"><span class="stat-label">NAME</span><span id="stat-name">ADVENTURER</span></div>
+              <div class="stat-row"><span class="stat-label">HP</span><span id="stat-hp">10 / 10</span></div>
+              <div class="stat-row"><span class="stat-label">ATTACK</span><span id="stat-attack">10</span></div>
+              <div class="stat-row"><span class="stat-label">DEFENSE</span><span id="stat-defense">0</span></div>
+              <div class="stat-row"><span class="stat-label">MOVE</span><span id="stat-move">2.0</span></div>
+            </div>
+
+            <div id="inventory-details">Hover an item for details.</div>
+          </div>
+        </div>
+
+        <div id="inventory-hotbar" aria-label="Hotbar">
+          <div class="hotbar-slot" data-hotbar-index="0"><div class="hotbar-key">1</div></div>
+          <div class="hotbar-slot" data-hotbar-index="1"><div class="hotbar-key">2</div></div>
+          <div class="hotbar-slot" data-hotbar-index="2"><div class="hotbar-key">3</div></div>
+          <div class="hotbar-slot" data-hotbar-index="3"><div class="hotbar-key">4</div></div>
+          <div class="hotbar-slot" data-hotbar-index="4"><div class="hotbar-key">5</div></div>
+          <div class="hotbar-slot" data-hotbar-index="5"><div class="hotbar-key">6</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="inv-tooltip">
+      <div class="tt-title" id="tt-title"></div>
+      <div class="tt-line" id="tt-type"></div>
+      <div class="tt-line" id="tt-stats"></div>
+      <div class="tt-desc" id="tt-desc"></div>
+      <div class="tt-actions" id="tt-actions"></div>
+    </div>
+
+    <div id="inv-context" aria-hidden="true">
+      <div class="ctx-title" id="ctx-title">ACTIONS</div>
+      <div class="ctx-actions">
+        <button class="tt-btn" id="ctx-split">SPLIT</button>
+        <button class="tt-btn" id="ctx-drop">DROP</button>
+      </div>
+    </div>
+
+    <img id="inv-drag-ghost" alt="drag" />
+    <div id="inv-toast"></div>
+
+    <div id="inv-confirm" aria-hidden="true">
+      <div id="inv-confirm-panel">
+        <div class="msg" id="inv-confirm-msg">Drop item?</div>
+        <div class="actions">
+          <button class="tt-btn" id="inv-confirm-yes">DROP</button>
+          <button class="tt-btn" id="inv-confirm-no">CANCEL</button>
+        </div>
+      </div>
+    </div>
     <div id="ui-layer">
       <div id="overlay">
         <h1>hi mom</h1>

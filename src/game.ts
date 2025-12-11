@@ -5,6 +5,8 @@
 
 import * as THREE from 'three';
 import { InventoryManager } from './inventory';
+import { ItemPickupManager } from './itemPickups';
+import { DUNGEON_PICKUP_LAYOUT } from './pickupLayouts';
 
 // ============================================================================
 // CONSTANTS
@@ -91,6 +93,7 @@ export interface ProjectileData {
   dirY: number;
   lifetime: number;
   hand: 'left' | 'right';
+  damage: number;
 }
 
 // ============================================================================
@@ -142,6 +145,11 @@ export const DUNGEON2_CONFIG = {
   CELL_SIZE: 1.0,
 };
 
+export const gridToWorldCenter = (gridX: number, gridZ: number): { x: number; z: number } => ({
+  x: gridX * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE * 0.5,
+  z: gridZ * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE * 0.5,
+});
+
 export const ENEMY_PRESETS = [
   { maxHealth: 50, speed: CONFIG.ENEMY_SPEED, name: 'Slime' },
   { maxHealth: 100, speed: CONFIG.ENEMY_SPEED * 0.7, name: 'Tank Slime' },
@@ -192,43 +200,23 @@ class TextureManager {
     }
 
     try {
-      // Load right hand texture
-      const handTex = await this.loader.loadAsync('src/assets/resources/Mage-hand.png');
-      configureTexture(handTex);
-      this.textures.set('hand', handTex);
-      console.log('Right hand texture loaded');
+      // Load right hand viewmodel texture
+      const rightHandTex = await this.loader.loadAsync('src/assets/resources/hands/Mage-hand-right.png');
+      configureTexture(rightHandTex);
+      this.textures.set('hand-right', rightHandTex);
+      console.log('Right hand viewmodel texture loaded');
     } catch (e) {
-      console.warn('Failed to load right hand texture', e);
-    }
-
-    // Load additional hand textures
-    const handTextures = [
-      { name: 'hand-lady', path: 'src/assets/resources/hands/lady_hands.png' },
-      { name: 'hand-m1911', path: 'src/assets/resources/hands/m1911_hands.png' },
-      { name: 'hand-plate', path: 'src/assets/resources/hands/plate_hands.png' },
-      { name: 'hand-shotgun', path: 'src/assets/resources/hands/shotgun_hands.png' },
-      { name: 'hand-mage-right', path: 'src/assets/resources/hands/mage-hand-right2.png' },
-    ];
-
-    for (const hand of handTextures) {
-      try {
-        const tex = await this.loader.loadAsync(hand.path);
-        configureTexture(tex);
-        this.textures.set(hand.name, tex);
-        console.log(`${hand.name} texture loaded`);
-      } catch (e) {
-        console.warn(`Failed to load ${hand.name} texture`, e);
-      }
+      console.warn('Failed to load right hand viewmodel texture', e);
     }
 
     try {
-      // Load left hand texture (separate image, not mirrored)
-      const leftHandTex = await this.loader.loadAsync('src/assets/resources/Mage-hand-left2.png');
+      // Load left hand viewmodel texture (separate image, not mirrored)
+      const leftHandTex = await this.loader.loadAsync('src/assets/resources/hands/Mage-hand-left2.png');
       configureTexture(leftHandTex);
       this.textures.set('hand-left', leftHandTex);
-      console.log('Left hand texture loaded');
+      console.log('Left hand viewmodel texture loaded');
     } catch (e) {
-      console.warn('Failed to load left hand texture', e);
+      console.warn('Failed to load left hand viewmodel texture', e);
     }
 
     try {
@@ -1014,6 +1002,12 @@ class PlayerController {
 
   private keys: { [key: string]: boolean } = {};
   private isLocked = false;
+  private isPaused = false;
+
+  // Derived stats (from equipment)
+  private attack = CONFIG.PROJECTILE_DAMAGE;
+  private defense = 0;
+  private moveSpeed = CONFIG.MOVE_SPEED;
 
   // Health system
   public health: number = CONFIG.PLAYER_MAX_HEALTH;
@@ -1052,6 +1046,26 @@ class PlayerController {
     this.setupInputs(canvas);
   }
 
+  setPaused(paused: boolean): void {
+    this.isPaused = paused;
+    if (paused) {
+      // prevent stuck movement while UI is open
+      this.keys = {};
+      this.isDashing = false;
+      this.dashTimer = 0;
+    }
+  }
+
+  setDerivedStats(stats: { attack: number; defense: number; moveSpeed: number }): void {
+    this.attack = stats.attack;
+    this.defense = stats.defense;
+    this.moveSpeed = stats.moveSpeed;
+  }
+
+  getAttack(): number {
+    return this.attack;
+  }
+
   private setupInputs(canvas: HTMLCanvasElement): void {
     // Keyboard
     window.addEventListener('keydown', (e) => {
@@ -1072,7 +1086,14 @@ class PlayerController {
       if (this.isLocked) {
         overlay?.classList.add('hidden');
       } else {
-        overlay?.classList.remove('hidden');
+        // Only show the start overlay if the game has not started AND the inventory isn't open.
+        const started = overlay?.getAttribute('data-started') === '1';
+        const invOpen = document.getElementById('inventory-overlay')?.classList.contains('open') ?? false;
+        if (!started && !invOpen) {
+          overlay?.classList.remove('hidden');
+        } else {
+          overlay?.classList.add('hidden');
+        }
       }
     });
 
@@ -1088,6 +1109,7 @@ class PlayerController {
 
   update(dt: number): void {
     if (!this.isLocked) return;
+    if (this.isPaused) return;
 
     // Update dash cooldown
     if (this.dashCooldown > 0) {
@@ -1124,7 +1146,7 @@ class PlayerController {
       }
     }
 
-    const currentSpeed = CONFIG.MOVE_SPEED;
+    const currentSpeed = this.moveSpeed;
 
     // Calculate movement direction
     const forward = new THREE.Vector3(0, 0, -1);
@@ -1304,8 +1326,9 @@ class PlayerController {
 
   takeDamage(amount: number): void {
     if (this.invulnerabilityTimer > 0) return;
-    
-    this.health -= amount;
+
+    const reduced = Math.max(0, amount - this.defense);
+    this.health -= reduced;
     this.damageFlashTimer = 0.2;
     this.invulnerabilityTimer = 0.5; // Brief invulnerability after hit
     
@@ -1313,7 +1336,13 @@ class PlayerController {
     
     this.onHealthChange?.(this.health, this.maxHealth);
     
-    console.log(`Player took ${amount} damage! Health: ${this.health}/${this.maxHealth}`);
+    console.log(`Player took ${reduced} damage! Health: ${this.health}/${this.maxHealth}`);
+  }
+
+  heal(amount: number): void {
+    if (amount <= 0) return;
+    this.health = Math.min(this.maxHealth, this.health + amount);
+    this.onHealthChange?.(this.health, this.maxHealth);
   }
 
   isInvulnerable(): boolean {
@@ -1443,7 +1472,7 @@ class CoinManager {
 
   private collectCoin(coin: CoinData, index: number): void {
     // Try to add to inventory
-    const added = this.inventoryManager.addItem('gold', 1);
+    const added = this.inventoryManager.tryAddById('gold_coin', 1);
     
     if (added) {
       coin.collected = true;
@@ -1479,6 +1508,7 @@ class EnemyManager {
   private enemies: EnemyData[] = [];
   private camera: THREE.Camera;
   private player: PlayerController | null = null;
+  private isPaused = false;
 
   constructor(scene: THREE.Scene, textures: TextureManager, camera: THREE.Camera) {
     this.scene = scene;
@@ -1487,12 +1517,17 @@ class EnemyManager {
     this.setupSpawnKeys();
   }
 
+  setPaused(paused: boolean): void {
+    this.isPaused = paused;
+  }
+
   setPlayer(player: PlayerController): void {
     this.player = player;
   }
 
   private setupSpawnKeys(): void {
     window.addEventListener('keydown', (e) => {
+      if (this.isPaused) return;
       if (e.code === 'Digit1') this.spawnEnemy(0);
       if (e.code === 'Digit2') this.spawnEnemy(1);
       if (e.code === 'Digit3') this.spawnEnemy(2);
@@ -1657,7 +1692,7 @@ class ProjectileManager {
     this.enemyManager = enemyManager;
   }
 
-  fire(position: THREE.Vector3, direction: THREE.Vector3, hand: 'left' | 'right'): void {
+  fire(position: THREE.Vector3, direction: THREE.Vector3, hand: 'left' | 'right', damage: number): void {
     // Create projectile mesh
     const geometry = new THREE.SphereGeometry(0.1, 8, 8);
     const color = hand === 'left' ? 0x4488ff : 0xff8844;
@@ -1696,6 +1731,7 @@ class ProjectileManager {
       dirY: direction.z,
       lifetime: CONFIG.PROJECTILE_LIFETIME,
       hand,
+      damage,
     });
   }
 
@@ -1723,7 +1759,7 @@ class ProjectileManager {
       if (!shouldRemove && this.enemyManager.damageEnemyAt(
         proj.mesh.position.x, 
         proj.mesh.position.z, 
-        CONFIG.PROJECTILE_DAMAGE
+        proj.damage
       )) {
         shouldRemove = true;
       }
@@ -1757,7 +1793,7 @@ class HUDManager {
   private bobPhase = 0;
   
   // Hand selection
-  private availableHands: string[] = ['hand', 'hand-lady', 'hand-m1911', 'hand-plate', 'hand-shotgun', 'hand-mage-right'];
+  private availableHands: string[] = ['hand-right'];
   private currentHandIndex = 0;
   private handIndicatorTimeout: number | null = null;
 
@@ -1799,7 +1835,6 @@ class HUDManager {
         transparent: true,
         depthTest: false,
         depthWrite: false,
-        alphaTest: 0.5,
       });
       this.leftHandSprite = new THREE.Sprite(leftMaterial);
       this.leftHandSprite.scale.set(0.4, 0.4, 0.4);
@@ -1831,7 +1866,6 @@ class HUDManager {
         transparent: true,
         depthTest: false,
         depthWrite: false,
-        alphaTest: 0.5,
       });
       this.rightHandSprite = new THREE.Sprite(rightMaterial);
       this.rightHandSprite.scale.set(0.4, 0.4, 0.4);
@@ -2072,9 +2106,11 @@ export class Game {
   private projectileManager!: ProjectileManager;
   private hudManager!: HUDManager;
   private coinManager!: CoinManager;
+  private itemPickupManager!: ItemPickupManager;
   private inventoryManager!: InventoryManager;
   private clock = new THREE.Clock();
   private currentScene: SceneType = 'dungeon';
+  private isPaused = false;
 
   constructor() {
     console.log('Game constructor started');
@@ -2118,6 +2154,7 @@ export class Game {
 
     // Setup mouse click for firing
     document.addEventListener('mousedown', (e) => {
+      if (this.isPaused) return;
       if (!this.player.isActive()) return;
       
       if (e.button === 0) {
@@ -2129,6 +2166,7 @@ export class Game {
 
     // Mouse wheel for hand cycling
     document.addEventListener('wheel', (e) => {
+      if (this.isPaused) return;
       if (!this.player.isActive()) return;
       
       if (this.hudManager) {
@@ -2185,13 +2223,51 @@ export class Game {
       this.projectileManager = new ProjectileManager(this.scene, this.enemyManager);
       this.hudManager = new HUDManager(this.scene, this.player.camera, this.textures);
       
-      // Initialize Inventory
-      this.inventoryManager = new InventoryManager();
-      document.addEventListener('keydown', (e) => {
-        if (e.key.toLowerCase() === 'i') {
-          this.inventoryManager.toggleVisibility();
-        }
+      // Mark the start overlay as "started" so it doesn't reappear for inventory
+      const startOverlay = document.getElementById('overlay');
+      if (startOverlay) startOverlay.setAttribute('data-started', '1');
+
+      // Initialize Inventory (UI owns keybinds: I/Tab, ESC)
+      this.inventoryManager = new InventoryManager({
+        onOpenChanged: (open) => {
+          this.setPaused(open);
+          // Ensure the start overlay does not block inventory
+          if (startOverlay) startOverlay.classList.add('hidden');
+          if (open) {
+            // Release pointer lock so the cursor can interact with the inventory
+            if (document.pointerLockElement) {
+              document.exitPointerLock();
+            }
+          }
+        },
+        onUseConsumable: (stack) => {
+          if (stack.item.id === 'potion_health') {
+            this.player.heal(50);
+          }
+        },
+        onEquipmentChanged: (stats) => {
+          this.player.setDerivedStats({
+            attack: stats.attack,
+            defense: stats.defense,
+            moveSpeed: stats.moveSpeed,
+          });
+        },
       });
+
+      // Pre-populate starting items
+      this.inventoryManager.setPlayerInfo({
+        name: 'Adventurer',
+        hpCurrent: this.player.health,
+        hpMax: this.player.maxHealth,
+        baseAttack: 10,
+        baseDefense: 0,
+        baseMoveSpeed: CONFIG.MOVE_SPEED,
+      });
+      this.inventoryManager.setStartingItems();
+
+      // Initialize derived stats once at start
+      const derived = this.inventoryManager.getDerivedStats();
+      this.player.setDerivedStats({ attack: derived.attack, defense: derived.defense, moveSpeed: derived.moveSpeed });
 
       // Create coin manager and spawn coins
       this.coinManager = new CoinManager(this.scene, this.textures, this.inventoryManager);
@@ -2201,9 +2277,21 @@ export class Game {
       });
       this.spawnDungeonCoins();
 
+      // Create item pickup manager and spawn pickups defined by the dungeon layout
+      this.itemPickupManager = new ItemPickupManager(this.scene, this.inventoryManager);
+      this.spawnDungeonItemPickupsFromLayout();
+
       // Connect player health to HUD
       this.player.setHealthChangeCallback((health, maxHealth) => {
         this.hudManager.updateHealth(health, maxHealth);
+        // keep inventory stats panel updated
+        this.inventoryManager.setPlayerInfo({
+          hpCurrent: health,
+          hpMax: maxHealth,
+          baseAttack: 10,
+          baseDefense: 0,
+          baseMoveSpeed: this.inventoryManager.getDerivedStats().moveSpeed,
+        });
       });
 
       // Set up door transition callback
@@ -2259,7 +2347,7 @@ export class Game {
 
   private fireProjectile(hand: 'left' | 'right'): void {
     const dir = this.player.getDirection();
-    this.projectileManager.fire(this.player.position.clone(), dir, hand);
+    this.projectileManager.fire(this.player.position.clone(), dir, hand, this.player.getAttack());
     this.hudManager.triggerCast(hand);
   }
 
@@ -2268,16 +2356,19 @@ export class Game {
 
     const dt = this.clock.getDelta();
 
-    // Update systems
-    this.player?.update(dt);
+    // Update systems (pause stops gameplay, but keeps rendering/UI)
     this.player?.updateTimers(dt);
-    this.player?.checkDoorProximity();
+    if (!this.isPaused) {
+      this.player?.update(dt);
+      this.player?.checkDoorProximity();
 
-    // Only update dungeon-specific managers when in dungeon
-    if (this.currentScene === 'dungeon') {
-      this.enemyManager?.update(dt, this.player?.position);
-      this.projectileManager?.update(dt);
-      this.coinManager?.update(dt, this.player?.position);
+      // Only update dungeon-specific managers when in dungeon
+      if (this.currentScene === 'dungeon') {
+        this.enemyManager?.update(dt, this.player?.position);
+        this.projectileManager?.update(dt);
+        this.coinManager?.update(dt, this.player?.position);
+        this.itemPickupManager?.update(dt, this.player?.position);
+      }
     }
 
     this.hudManager?.update(dt);
@@ -2298,6 +2389,50 @@ export class Game {
       this.renderer.render(activeScene, this.player.camera);
     }
   };
+
+  private setPaused(paused: boolean): void {
+    this.isPaused = paused;
+    this.player?.setPaused(paused);
+    this.enemyManager?.setPaused(paused);
+  }
+
+  private spawnDungeonItemPickupsFromLayout(): void {
+    if (!this.itemPickupManager) return;
+
+    const worldSpawns = [];
+
+    for (const entry of DUNGEON_PICKUP_LAYOUT) {
+      const row = DUNGEON_MAP[entry.gridZ];
+      const cell = row?.[entry.gridX];
+
+      if (cell === undefined) {
+        console.warn(
+          `Pickup layout skipped ${entry.itemId} at grid (${entry.gridX}, ${entry.gridZ}) - outside dungeon bounds`
+        );
+        continue;
+      }
+
+      if (cell !== 0) {
+        console.warn(
+          `Pickup layout skipped ${entry.itemId} at grid (${entry.gridX}, ${entry.gridZ}) - blocked cell value ${cell}`
+        );
+        continue;
+      }
+
+      const { x, z } = gridToWorldCenter(entry.gridX, entry.gridZ);
+      worldSpawns.push({
+        itemId: entry.itemId,
+        quantity: entry.quantity ?? 1,
+        x,
+        z,
+        y: 0.4,
+      });
+    }
+
+    if (worldSpawns.length > 0) {
+      this.itemPickupManager.spawnMany(worldSpawns);
+    }
+  }
 
   private updateSprintStatus(): void {
     const statusEl = document.getElementById('status-indicator');
@@ -2348,14 +2483,33 @@ export class Game {
   }
 
   private spawnDungeonCoins(): void {
-    // Spawn coins at predefined positions in the dungeon
-    const coinPositions = [
-      { x: 3.5, z: 3.5 },
-      { x: 6.5, z: 2.5 },
-      { x: 2.5, z: 6.5 },
-      { x: 7.5, z: 7.5 },
-      { x: 5.5, z: 5.5 },
+    // Spawn coins at predefined grid positions (validated against walls).
+    // NOTE: Coins spawned on the player start tile get instantly collected,
+    // so we avoid (3,3) (player starts at 3.5,3.5).
+    const coinGridPositions: Array<{ gridX: number; gridZ: number }> = [
+      { gridX: 2, gridZ: 2 },
+      { gridX: 4, gridZ: 2 },
+      { gridX: 2, gridZ: 4 },
+      { gridX: 4, gridZ: 4 },
+      { gridX: 5, gridZ: 5 },
     ];
+
+    const coinPositions: Array<{ x: number; z: number }> = [];
+    for (const entry of coinGridPositions) {
+      const row = DUNGEON_MAP[entry.gridZ];
+      const cell = row?.[entry.gridX];
+      if (cell === undefined) {
+        console.warn(`Coin spawn skipped at grid (${entry.gridX}, ${entry.gridZ}) - outside dungeon bounds`);
+        continue;
+      }
+      if (cell !== 0) {
+        console.warn(`Coin spawn skipped at grid (${entry.gridX}, ${entry.gridZ}) - blocked cell value ${cell}`);
+        continue;
+      }
+      const { x, z } = gridToWorldCenter(entry.gridX, entry.gridZ);
+      coinPositions.push({ x, z });
+    }
+
     this.coinManager.spawnCoinsInRoom(coinPositions);
     console.log(`Spawned ${coinPositions.length} coins in dungeon`);
   }
